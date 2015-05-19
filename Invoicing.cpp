@@ -183,8 +183,31 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		height = HPDF_Page_GetHeight(page);
 		HPDF_REAL width;
 		width = HPDF_Page_GetWidth(page);
-		HPDF_Page_DrawImage(page, logo, 0, HPDF_Page_GetHeight(page)- 56, 160, 56);
+		HPDF_Page_DrawImage(page, logo, width*.1, height*.9 -56, 160, 56);
+		vector<HPDF_REAL> pos;
+		pos[0] = 0;
+		pos[1] = 0;
 		
+		HPDF_Page_BeginText(page);
+		pos = setText(page, width*.1 + 160 + 10, height*.9 - 4, pos);
+
+
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
+		HPDF_Page_ShowText(page, "Please Remit to:");
+		pos = setText(page, 0, -12, pos);
+
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica-Bold", NULL), 16);
+		HPDF_Page_ShowText(page, "CNH Reman, LLC");
+		pos = setText(page, 0, -16, pos);
+	
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
+		HPDF_Page_ShowText(page, "2702 N FR 123, Suite A");
+		pos = setText(page, 0, -12, pos);
+
+		HPDF_Page_ShowText(page, "Springfield MO, 65807");
+
+		
+		//BELOW HERE NEEDS TO BE EDITED FOR Re-arrangement
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 24);
 		const char* title = "Invoice:";
 		if (invoice->get_header("Credit") == "C")
@@ -192,27 +215,17 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		string strstuf = string(title) + " " + invoice->get_header("Credit") + invoice->get_header("Invoice#");
 		const char* stuff = strstuf.c_str();
 		HPDF_REAL space = HPDF_Page_TextWidth(page, title);
-		HPDF_Page_BeginText(page);
+		pos = setText(page, width*.9 - pos[0] - HPDF_Page_TextWidth(page, title), 40, pos);
+	
 		HPDF_Page_MoveTextPos(page, (width - HPDF_Page_TextWidth(page, stuff)) * 4 / 9, height*.95);
 		HPDF_Page_ShowText(page, stuff);
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
 		HPDF_Page_MoveTextPos(page, 0, -24);
 		HPDF_Page_ShowText(page, ("Date: " + invoice->get_header("Date")).c_str());
-		HPDF_Page_MoveTextPos(page, width / 3, 36);
 
-		HPDF_Page_ShowText(page, "Please Remit to CNH Reman, LLC");
-		HPDF_Page_MoveTextPos(page, 0, -12);
-		HPDF_Page_ShowText(page, "2702 N FR 123, Suite A");
-		HPDF_Page_MoveTextPos(page, 0, -12);
-		HPDF_Page_ShowText(page, "Springfield MO, 65807");
 		HPDF_Page_EndText(page);
 		HPDF_Page_SetLineWidth(page, 1);
-		HPDF_Page_Rectangle(page, (width - HPDF_Page_TextWidth(page, "Please Remit to CNH Reman, LLC")) -30, height*.95 - 22, width + 1, height + 1);
 		HPDF_Page_Stroke(page);
-		
-		
-		
-		
 		
 		
 		
@@ -238,6 +251,17 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 }
 
 
+vector<HPDF_REAL> setText(HPDF_Page page ,HPDF_REAL x, HPDF_REAL y, vector<HPDF_REAL> pos){
+	vector<HPDF_REAL> Newpos = pos;
+	HPDF_REAL xPos = pos[0];
+	HPDF_REAL yPos = pos[1];
+	HPDF_Page_MoveTextPos(page, x, y);
+	xPos = xPos + x;
+	yPos = yPos - y;
+	Newpos[0] = xPos;
+	Newpos[1] = yPos;
+	return Newpos;
+}
 
 
 int main(int argc, char **argv)
