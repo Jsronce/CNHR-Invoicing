@@ -1,12 +1,48 @@
+/*Invocing.Exe
+Summary:
+A project that takes invoice data downloaded from the CNH Reman
+PICK System and creates PDF Invoices.  
+
+Description:
+Takes invoicing data from a csv named invoice.csv located in:
+"\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\Processing"
+that is delimited by tabs.  Creates an Invoice object for each invoice
+and uses that object to create a PDF Invoice.  Currentlly uses a 
+customer file to get SoldTo information, because it is not included in
+download.  
+
+Dependances: 
+Libpdfs: a LibHaru Library for PDF writing
+Boost: a c++ advanced library
+
+Author: John Sronce
+Last Edit: 5/22/15
+*/
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 #include <string>
 #include <iostream>
 #include <exception>
 #include <fstream>
 #include <vector>
+#include <sstream>
 #include <set>
 #include "hpdf.h"
 #include <unordered_map>
+#include <boost/algorithm/string.hpp>
+#include <boost/foreach.hpp>
 
 
 using namespace std;
@@ -28,7 +64,7 @@ error_handler(HPDF_STATUS error_no,
 }
 
 //Used Headers for invoicing
-vector<string> HEADER_LIST{ "Invoice#", "OT" "Man_PO", "Date", "Terms",
+vector<string> HEADER_LIST{ "Invoice#", "OT" "Man", "Date", "Terms",
 "Sales Person", "Ship Via", "SoldTO", "Sold-Name", "Sold-Ad1", "Sold-City", "Sold-St",
 "Sold-Zip" ,"ShipTO", "Ship-Name" ,"Ship-Ad1", "Ship-Ad2", "Ship-City", "Ship-ST", 
 "Ship-Zip", "Message1", "Message2", "Message3", "Credit", "BOL" };
@@ -54,7 +90,7 @@ public:
 		invoice_number = invoice[0];
 		headers["Invoice#"] = invoice[0];
 		headers["OT"] = invoice[1];
-		headers["Man_PO"] = invoice[3];
+		headers["PO"] = invoice[3];
 		headers["Date"] = invoice[21];
 		headers["Terms"] = invoice[30];
 		headers["Sales Person"] = invoice[38];
@@ -72,6 +108,8 @@ public:
 		headers["Message3"] = invoice[25];
 		headers["Credit"] = invoice[9];
 
+		boost::to_upper(headers["SoldTO"]);
+		boost::to_upper(headers["ShipTO"]);
 		for (int i = 0; i < customers.size(); i++){
 			if (customers[i][0] == headers["SoldTO"]){
 				headers["Sold-Name"] = customers[i][1];
@@ -133,6 +171,11 @@ public:
 			ar += atoi((i[4] + i[5]).c_str())*atoi(i[1].c_str());
 		return ar;
 	}
+
+	vector<vector<string>> get_transactions(){
+		return transactions;
+	}
+
 };
 
 
@@ -179,6 +222,8 @@ vector<vector<string>> create_table(string fname, char delimeter='\t', bool invo
 }
 
 vector<HPDF_REAL> setText(HPDF_Page page, HPDF_REAL x, HPDF_REAL y, vector<HPDF_REAL> pos){
+	/*Takes positon adustmetns to the HPDF_Page and the current position vector, and returns
+	the updates position.*/
 	vector<HPDF_REAL> Newpos = pos;
 	HPDF_REAL xPos = pos[0];
 	HPDF_REAL yPos = pos[1];
@@ -190,7 +235,68 @@ vector<HPDF_REAL> setText(HPDF_Page page, HPDF_REAL x, HPDF_REAL y, vector<HPDF_
 	return Newpos;
 }
 
+string dollarFormat(string number){
+	string neg = "";
+	if (number[0] == '-'){
+		neg = "-";
+		number.erase(0, 0);
+	}
+	int insertPosition = number.length() - 6;
+	while (insertPosition > 0) {
+		number.insert(insertPosition, ",");
+		insertPosition -= 3;
+	}
+	number.insert(0,"$" + neg);
+	return number;
+
+}
+
+
+string totalDollars(string exchangeExt, string coreExt){
+	/*Adds 2 decimal strings.  Should be safe, no garrantees though.*/
+	vector<string> exchange;
+	vector<string> coreV;
+	vector<int> total;
+	stringstream exch(exchangeExt);
+	stringstream core(coreExt);
+	string token;
+	char delmiter = '.';
+	while (getline(exch, token, delmiter)) {
+		exchange.push_back(token);
+	}
+	while (getline(core, token, delmiter)) {
+		coreV.push_back(token);
+	}
+	string coreneg = "";
+	string exchneg = "";
+	if (coreV[0][0] == '-'){
+		coreneg = "-";
+		coreV[0].erase(0, 0);
+	}
+	if (exchange[0][0] == '-'){
+		exchneg = "-";
+		exchange[0].erase(0, 0);
+	}
+	total.push_back(stoi(exchange[0]) + stoi(coreV[0]));
+	total.push_back(stoi(exchange[1]) + stoi(coreV[1]));
+	if (total[1] > 100){
+		total[1] = total[1] - 100;
+		total[0] = total[0] + 1;
+	}
+	
+	string strTotal = to_string(total[0]) + ".";
+	if (total[1] < 10){
+		strTotal = strTotal + "0" + to_string(total[1]);
+	}
+	else{
+		strTotal = strTotal + to_string(total[1]);
+	}
+	return dollarFormat(exchneg + strTotal);
+}
+
+
 int create_PDF(record* invoice, vector<vector<string>> customers){
+	/*Creates a PDF from a invoice record object and safes it.*/
 	
 	
 	
@@ -210,23 +316,25 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		
 
 		height = HPDF_Page_GetHeight(page);
-		HPDF_REAL heightMargin = height*.95;
+		HPDF_REAL heightMargin = height*.05;
 		HPDF_REAL width;
 		width = HPDF_Page_GetWidth(page);
-		HPDF_REAL widthMargin = width*.95;
-		HPDF_Page_DrawImage(page, logo, width*.05, height*.95 -56, 160, 56);
+		HPDF_REAL widthMargin = width*.05;
+		HPDF_Page_DrawImage(page, logo, width*.05, height*.95 -56, 180, 63);
 		vector<HPDF_REAL> pos = { 0, 0 };
 
 		
 		HPDF_Page_BeginText(page);
-		pos = setText(page, width*.05 + 160 + 20, height*.95 -16, pos);
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica-Bold", NULL), 16);
+
+		pos = setText(page, width/2 - HPDF_Page_TextWidth(page, "CNH Reman, LLC") / 2, height*.95 - 16, pos);
 
 
 		//HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
 		//HPDF_Page_ShowText(page, "Please Remit to:");
 		//pos = setText(page, 0, -12, pos);
 
-		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica-Bold", NULL), 16);
+
 		HPDF_Page_ShowText(page, "CNH Reman, LLC");
 		pos = setText(page, 0, -16, pos);
 	
@@ -261,28 +369,153 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		const char* date = tempStr.c_str();
 		pos = setText(page, width*.95 - pos[0] - HPDF_Page_TextWidth(page, date), -12, pos);
 		HPDF_Page_ShowText(page, date);
-
 		HPDF_Page_EndText(page);
 
+		HPDF_Page_MoveTo(page, widthMargin, height - heightMargin - 61);
+		HPDF_Page_LineTo(page, width - widthMargin, height - heightMargin - 61);
+		HPDF_Page_Stroke(page);
 		
 		//End Create Page
 
 		HPDF_Page_BeginText(page);
 		pos = { 0, 0 };
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
-		pos = setText(page, widthMargin, heightMargin - 86, pos);
+		pos = setText(page, widthMargin, height - heightMargin - 100, pos);//
 		HPDF_Page_ShowText(page, "Sold to");
 		pos = setText(page, 10, -10, pos);
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
-		HPDF_Page_ShowText(page, invoice->get_header("SoldTO").c_str());
-		HPDF_Page_ShowText(page, invoice->get_header("SoldTO").c_str());
-		HPDF_Page_ShowText(page, invoice->get_header("SoldTO").c_str());
-		HPDF_Page_ShowText(page, invoice->get_header("SoldTO").c_str());
+		tempStr = invoice->get_header("Sold-Name") + " (" + invoice->get_header("SoldTO") + ")";
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -12, pos);
+		HPDF_Page_ShowText(page, invoice->get_header("Sold-Ad1").c_str());
+		pos = setText(page, 0, -12, pos);
+		tempStr = invoice->get_header("Sold-City") + ", " + invoice->get_header("Sold-ST") + invoice->get_header("Sold-Zip");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -24, pos);
+		tempStr = "PO Number: " + invoice->get_header("PO");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -12, pos);
+		tempStr = "Terms: " + invoice->get_header("Terms");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -12, pos);
+		tempStr = "Sales Person: " + invoice->get_header("Sales Person");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		
+		pos = setText(page, width*.475-10, 82, pos);
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
+		HPDF_Page_ShowText(page, "Ship to");
+		pos = setText(page, 10, -10, pos);
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
+		tempStr = invoice->get_header("Ship-Name") + " (" + invoice->get_header("ShipTO") + ")";
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -12, pos);
+		HPDF_Page_ShowText(page, invoice->get_header("Ship-Ad1").c_str());
+		pos = setText(page, 0, -12, pos);
+		tempStr = invoice->get_header("Ship-City") + ", " + invoice->get_header("Ship-ST") + invoice->get_header("Ship-Zip");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -24, pos);
+		tempStr = "Ship Date: " + invoice->get_header("Date");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -12, pos);
+		tempStr = "Shipped Via: " + invoice->get_header("Ship Via");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -12, pos);
+		tempStr = "BOL: " + invoice->get_header("BOL");
+		HPDF_Page_ShowText(page, tempStr.c_str());
+		HPDF_Page_EndText(page);
 
 
+		HPDF_Page_BeginText(page);
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
+		HPDF_REAL widthUnit = width*.95 / 100;
+		pos = setText(page, widthMargin + widthUnit, height - heightMargin - 234, pos);
+		HPDF_Page_ShowText(page, "PSO");
+		pos = setText(page, widthUnit * 9, 10, pos);
+		HPDF_Page_ShowText(page, "Shipped");
+		pos = setText(page, 0, -10, pos);
+		HPDF_Page_ShowText(page, "Qty");
+		pos = setText(page, widthUnit * 9, 0, pos);
+		HPDF_Page_ShowText(page, "Part Number/Description");
+		pos = setText(page, widthUnit * 23, 10, pos);
+		HPDF_Page_ShowText(page, "Exchange");
+		pos = setText(page, 0, -10, pos);
+		HPDF_Page_ShowText(page, "Dollars");
+		pos = setText(page, widthUnit * 10, 10, pos);
+		HPDF_Page_ShowText(page, "Core");
+		pos = setText(page, 0, -10, pos);
+		HPDF_Page_ShowText(page, "Dollars");
+		pos = setText(page, widthUnit * 10, 10, pos);
+		HPDF_Page_ShowText(page, "Exchange");
+		pos = setText(page, 0, -10, pos);
+		HPDF_Page_ShowText(page, "Extended");
+		pos = setText(page, widthUnit * 12, 10, pos);
+		HPDF_Page_ShowText(page, "Core");
+		pos = setText(page, 0, -10, pos);
+		HPDF_Page_ShowText(page, "Extended");
+		pos = setText(page, widthUnit * 12, 10, pos);
+		HPDF_Page_ShowText(page, "Total");
+		pos = setText(page, 0, -10, pos);
+		HPDF_Page_ShowText(page, "Dollars");
+		HPDF_Page_EndText(page);
+
+		HPDF_Page_MoveTo(page, widthMargin, height - heightMargin - 235);
+		HPDF_Page_LineTo(page, width - widthMargin, height - heightMargin - 235);
+		HPDF_Page_Stroke(page);
+		vector<int> widthList = {0, 9, 9, 24, 10, 10, 12, 12 };
+		HPDF_REAL widthSum = 0;
+		BOOST_FOREACH(int width, widthList){
+			HPDF_Page_MoveTo(page, widthMargin + width * widthUnit*.9 + widthSum, height - heightMargin - 235);
+			HPDF_Page_LineTo(page, widthMargin + width * widthUnit*.9 + widthSum, height - heightMargin - 210);
+			HPDF_Page_Stroke(page);
+			widthSum = widthSum + width * widthUnit;
+		}
+		HPDF_Page_MoveTo(page, width - widthMargin, height - heightMargin - 235);
+		HPDF_Page_LineTo(page, width - widthMargin, height - heightMargin - 210);
+		HPDF_Page_Stroke(page);
+	
 		
+		vector<vector<string>> lines = invoice->get_transactions();
+
 		
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
+		int exchExt;
+		int coreExt;
+		int totalExt;
+		for (int i = 0; i < lines.size(); i++){
+			if (i % 2 == 0){
+				HPDF_Page_SetRGBFill(page, .75, .75, .75);
+				HPDF_Page_Rectangle(page, 0, height - heightMargin - 273 - i * 26, width, 26);
+				HPDF_Page_Fill(page);
+				HPDF_Page_SetRGBFill(page, 0.0, 0.0, 0.0);
+			}
+			HPDF_Page_BeginText(page);
+			pos = setText(page, widthMargin + widthUnit, height - heightMargin - 260 - i * 26, pos);
+
+			HPDF_Page_ShowText(page, lines[i][0].c_str());
+			pos = setText(page, widthUnit * 9, 0, pos);
+			HPDF_Page_ShowText(page, lines[i][1].c_str());
+			pos = setText(page, widthUnit * 9, 0, pos);
+			HPDF_Page_ShowText(page, lines[i][2].c_str());
+			
+			pos = setText(page, 0, -10, pos);
+			HPDF_Page_ShowText(page, lines[i][3].c_str());
+			pos = setText(page, widthUnit * 23, 10, pos);
+			HPDF_Page_ShowText(page, dollarFormat(lines[i][4]).c_str());
+			pos = setText(page, widthUnit * 10, 0, pos);
+			HPDF_Page_ShowText(page, dollarFormat(lines[i][5]).c_str());
+			pos = setText(page, widthUnit * 10, 0, pos);
+			HPDF_Page_ShowText(page, dollarFormat(lines[i][6]).c_str());
+			pos = setText(page, widthUnit * 11, 0, pos);
+			HPDF_Page_ShowText(page, dollarFormat(lines[i][7]).c_str());
+			pos = setText(page, widthUnit * 11, 0, pos);
+			HPDF_Page_ShowText(page, totalDollars(lines[i][6], lines[i][7]).c_str());
+			HPDF_Page_EndText(page);
+
+		}
 		
+
+		
+
 		HPDF_SaveToFile(pdf, (invoice->name() + ".pdf").c_str());
 
 	}
@@ -322,8 +555,20 @@ int main(int argc, char **argv)
 			string part = invoices[i][4];
 			if (part != "@MSG"  && qty != "0")
 			{
+
 				//		 PSO			 QTY   Part    DESCRIPTION       EXCHANGE			CORE
-				temp = { invoices[i][40], qty, part, invoices[i][5], invoices[i][12], invoices[i][14] };
+				temp = { invoices[i][40], qty, part, invoices[i][5], invoices[i][11], invoices[i][13], invoices[i][12], invoices[i][14] };
+				for (int i = 0; i < temp.size(); i++){
+					if (temp[i] == "" && i >3){
+						temp[i] = "0.00";
+					}
+				}
+				if (temp[2].length() > 14){
+					temp[2].erase(14, temp[2].length());
+				}
+				if (temp[3].length() > 14){
+					temp[3].erase(14, temp[2].length());
+				}
 				invoice->add_line(temp);
 			}
 		
@@ -333,7 +578,7 @@ int main(int argc, char **argv)
 			if (invoice != NULL){
 				if (invoice->invoice_total() != 0){
 					create_PDF(invoice, customers);
-					invoice->print();
+					//invoice->print();
 				}
 				delete invoice;
 			}
