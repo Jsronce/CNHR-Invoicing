@@ -137,14 +137,26 @@ string dollarFormat(string number){
 	string neg = "";
 	if (number[0] == '-'){
 		neg = "-";
-		number.erase(0, 0);
+		number.erase(0, 1);
+	}
+	if (number[0] == '('){
+		neg = "-";
+		number.erase(0, 1);
+		number.erase(number.size() - 1, number.size());
 	}
 	int insertPosition = number.length() - 6;
 	while (insertPosition > 0) {
 		number.insert(insertPosition, ",");
 		insertPosition -= 3;
 	}
-	number.insert(0,"$" + neg);
+	string tempStr;
+	if (neg == "-" || neg == "(")
+		tempStr = "$ (";
+	else
+		tempStr = "$";
+	number.insert(0,tempStr);
+	if (neg == "-" || neg == "(")
+		number.insert(number.size(), ")");
 	return number;
 
 }
@@ -171,13 +183,13 @@ string totalDollars(string exchangeExt, string coreExt){
 		coreV.push_back("00");
 	string coreneg = "";
 	string exchneg = "";
-	if (coreV[0][0] == '-'){
+	if (coreV[0][0] == '-' || coreV[0][0] == '('){
 		coreneg = "-";
-		coreV[0].erase(0, 0);
+		coreV[0].erase(0, 1);
 	}
-	if (exchange[0][0] == '-'){
+	if (exchange[0][0] == '-' || exchange[0][0] == '('){
 		exchneg = "-";
-		exchange[0].erase(0, 0);
+		exchange[0].erase(0, 1);
 	}
 	total.push_back(stoi(exchange[0]) + stoi(coreV[0]));
 	total.push_back(stoi(exchange[1]) + stoi(coreV[1]));
@@ -435,8 +447,10 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		
 		for (int i = 0; i < lines.size(); i++){
 			if (pos[1] > -90- heightMargin){
-				pos = setText(page, -pos[0] +widthMargin, +20, pos);
+				HPDF_Page_BeginText(page);
+				pos = setText(page, widthMargin, pos[1] -20, pos);
 				HPDF_Page_ShowText(page, "Continued on the next page...");
+				HPDF_Page_EndText(page);
 				pageCount += 1;
 				page = newPage(pdf, invoice, pageCount);
 				pos = addiPageHeaders(pdf, page, pageCount);
@@ -538,6 +552,7 @@ int main(int argc, char **argv)
 	HPDF_Doc Dummy = HPDF_New(error_handler, NULL);
 	HPDF_Page page = HPDF_AddPage(Dummy);
 	HPDF_Page_SetFontAndSize(page, HPDF_GetFont(Dummy, "Helvetica-Bold", NULL), 10);
+	string credit = "";
 
 
 	for (int i = 1; i < invoices.size(); i++){
@@ -545,11 +560,15 @@ int main(int argc, char **argv)
 		if (*current == previous){//If this line is associated with the current invoice add to it
 			string qty = invoices[i][10];
 			string part = invoices[i][4];
+			if (invoices[i][9] == "C"){
+				credit = "-";
+			}
+
 			if (part != "@MSG"  && qty != "0")
 			{
 
 				//		 PSO			 QTY   Part    DESCRIPTION       EXCHANGE			CORE		ExExt			CoreExt			Freight
-				temp = { invoices[i][40], qty, part, invoices[i][5], invoices[i][11], invoices[i][13], invoices[i][12], invoices[i][14], invoices[i][18] };
+				temp = { invoices[i][40], credit + qty, part, invoices[i][5], credit + invoices[i][11], credit + invoices[i][13], credit + invoices[i][12], credit + invoices[i][14], invoices[i][18] };
 				for (int i = 0; i < temp.size(); i++){
 					if (temp[i] == "" && i >3){
 						temp[i] = "0.00";

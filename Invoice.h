@@ -119,14 +119,14 @@ public:
 		string ar = "0";
 
 		for (auto i : transactions)
-			ar = totalDollars(ar, totalDollars(i[8], totalDollars(i[7], i[6])));
+			ar = totalDollars(totalDollars(totalDollars(i[7], i[8]) , i[6]), ar);
 		return ar;
 	}
 
 	string productTotal(){
 		string pr = "0";
 		for (auto i : transactions){
-			pr = totalDollars(pr, totalDollars(i[6], i[7]));
+			pr = totalDollars(totalDollars(i[6], i[7]), pr);
 		}
 		return pr;
 
@@ -135,7 +135,7 @@ public:
 	string freight(){
 		string fr = "0";
 		for (auto i : transactions){
-			fr = totalDollars(fr, i[8]);
+			fr = totalDollars(i[8], fr);
 		}
 		return fr;
 
