@@ -43,6 +43,7 @@ Last Edit: 5/22/15
 #include <unordered_map>
 #include <boost/algorithm/string.hpp>
 #include <boost/foreach.hpp>
+#include "invoice.h"
 
 
 using namespace std;
@@ -64,120 +65,20 @@ error_handler(HPDF_STATUS error_no,
 }
 
 //Used Headers for invoicing
-vector<string> HEADER_LIST{ "Invoice#", "OT" "Man", "Date", "Terms",
-"Sales Person", "Ship Via", "SoldTO", "Sold-Name", "Sold-Ad1", "Sold-City", "Sold-St",
-"Sold-Zip" ,"ShipTO", "Ship-Name" ,"Ship-Ad1", "Ship-Ad2", "Ship-City", "Ship-ST", 
-"Ship-Zip", "Message1", "Message2", "Message3", "Credit", "BOL" };
 
-//Determines whether invoice is sent or not
-set<string> INVOICED_ORDER_TYPES = { "05", "06", "07", "14" ,"08", "15", "71" };
-set<string> MOVE_TO_AP_TYPES = { "70", "73", "74" };
 
 
 //A class to contain all of the data for an invoice
 //Header values are in a dictionary
 //Rows are stored in a 2D Vector
 //Used for easy minipulation during Invoice generation
-class record{
-private:
-	string invoice_number;
-	unordered_map<string, string> headers;
-	vector<vector<string>> transactions;
-	
-
-public:
-	record(vector<string> invoice, vector<vector<string>> customers){
-		invoice_number = invoice[0];
-		headers["Invoice#"] = invoice[0];
-		headers["OT"] = invoice[1];
-		if (invoice[1] == "05")
-			headers["PO"] = invoice[24].erase(0,4);
-		else
-			headers["PO"] = invoice[3];
-		headers["Date"] = invoice[21];
-		headers["Terms"] = invoice[30];
-		headers["Sales Person"] = invoice[38];
-		headers["Ship Via"] = invoice[29];
-		headers["SoldTO"] = invoice[31];
-		headers["Ship-Name"] = invoice[7];
-		headers["ShipTO"] = invoice[6];
-		headers["Ship-Ad1"] = invoice[33];
-		headers["Ship-Ad2"] = invoice[34];
-		headers["Ship-City"] = invoice[35];
-		headers["Ship-ST"] = invoice[36];
-		headers["Ship-Zip"] = invoice[37];
-		headers["Message1"] = invoice[23];
-		headers["Message2"] = invoice[24];
-		headers["Message3"] = invoice[25];
-		headers["Credit"] = invoice[9];
-		headers["Sold-Name"] = invoice[42];
-		headers["Sold-Ad1"] = invoice[43];
-		headers["Sold-City"] = invoice[44];
-		headers["Sold-ST"] = invoice[45];
-		headers["Sold-Zip"] = invoice[46];
-		headers["BOL"] = invoice[39];
 
 
 
 
-	}
-
-
-	void print_lines(){
-		for (auto i = transactions.begin(); i != transactions.end(); i++){
-			for (auto j = i->begin(); j != i->end(); j++)
-				cout << *j << " ";
-			cout << endl;
-		}
-	}
-
-
-	string get_header(string key){
-		return headers[key];
-	}
-
-
-
-	void print(){
-		cout << this->name() << endl;
-		this->print_lines();
-		
-	}
-
-
-	void add_line(vector<string> line){
-		transactions.push_back(line);
-	}
-
-
-	//returns list of headers
-	vector<string> get_headers(){
-		vector<string> header_out;
-		for (int i = 0; i < 13; i++){
-			header_out.push_back(headers[HEADER_LIST[i]]);
-		}
-		return header_out;
-	}
-
-	string name() { return headers["SoldTO"]+ " " + invoice_number; }
-
-	string invoice_total(){
-		string ar = "0";
-
-		for (auto i : transactions)
-			ar = totalDollars(ar, totalDollars(i[7], i[6]));
-		return ar;
-	}
-
-	vector<vector<string>> get_transactions(){
-		return transactions;
-	}
-
-};
-
-
-
-//adding a line here
+//Determines whether invoice is sent or not
+set<string> INVOICED_ORDER_TYPES = { "05", "06", "07", "14", "08", "15", "71" };
+set<string> MOVE_TO_AP_TYPES = { "70", "73", "74" };
 
 
 //Fucntion to create a table of values from a delimited file
@@ -261,9 +162,13 @@ string totalDollars(string exchangeExt, string coreExt){
 	while (getline(exch, token, delmiter)) {
 		exchange.push_back(token);
 	}
+	if (exchange.size()<2)
+		exchange.push_back("00");
 	while (getline(core, token, delmiter)) {
 		coreV.push_back(token);
 	}
+	if (coreV.size()<2)
+		coreV.push_back("00");
 	string coreneg = "";
 	string exchneg = "";
 	if (coreV[0][0] == '-'){
@@ -288,13 +193,13 @@ string totalDollars(string exchangeExt, string coreExt){
 	else{
 		strTotal = strTotal + to_string(total[1]);
 	}
-	return dollarFormat(exchneg + strTotal);
+	return exchneg + strTotal;
 }
 
 
 
 
-HPDF_Page newPage(HPDF_Doc pdf, record* invoice){
+HPDF_Page newPage(HPDF_Doc pdf, record* invoice, int pageCount){
 	/*Creates a new page in the pdf doc and creates the header*/
 	const char* image_path = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\Processing\\CNHI Reman Logo Compressed.jpg";
 	HPDF_Image logo = HPDF_LoadJpegImageFromFile(pdf, image_path);
@@ -343,16 +248,39 @@ HPDF_Page newPage(HPDF_Doc pdf, record* invoice){
 	pos = setText(page, width*.95 - pos[0] - HPDF_Page_TextWidth(page, invNum), -16, pos);
 	HPDF_Page_ShowText(page, invNum);
 
+
+
+
 	tempStr = "Date: " + invoice->get_header("Date");
 	const char* date = tempStr.c_str();
-	pos = setText(page, width*.95 - pos[0] - HPDF_Page_TextWidth(page, date), -12, pos);
+	pos = setText(page, width*.95 - HPDF_Page_TextWidth(page, date), -12, pos);
 	HPDF_Page_ShowText(page, date);
+	HPDF_Page_EndText(page);
+
+	HPDF_Page_BeginText(page);
+	HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 8);
+	pos = { 0, 0 };
+	tempStr = "Page # " + to_string(pageCount);
+	pos = setText(page, width / 2 - HPDF_Page_TextWidth(page, tempStr.c_str()) / 2,  heightMargin, pos);
+	HPDF_Page_ShowText(page, tempStr.c_str());
+
+	tempStr = "Late Payments Will Incur a Fee of 1.5% Per Month";
+	pos = setText(page, width / 2 - pos[0] - HPDF_Page_TextWidth(page, tempStr.c_str())/2,  heightMargin, pos);
+	HPDF_Page_ShowText(page, tempStr.c_str());
 	HPDF_Page_EndText(page);
 
 	HPDF_Page_MoveTo(page, widthMargin, height - heightMargin - 61);
 	HPDF_Page_LineTo(page, width - widthMargin, height - heightMargin - 61);
 	HPDF_Page_Stroke(page);
 	return page;
+
+}
+
+int drawLine(HPDF_Page page, HPDF_REAL x, HPDF_REAL y, HPDF_REAL xend, HPDF_REAL yend){
+	HPDF_Page_MoveTo(page, x, -y);
+	HPDF_Page_LineTo(page, xend, -yend);
+	HPDF_Page_Stroke(page);
+	return 0;
 
 }
 
@@ -421,6 +349,7 @@ vector<HPDF_REAL> addiPageHeaders(HPDF_Doc pdf, HPDF_Page page, int pageCount){
 
 
 
+
 int create_PDF(record* invoice, vector<vector<string>> customers){
 	/*Creates a PDF from a invoice record object and safes it.*/
 	
@@ -433,8 +362,8 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 	}
 	try{
 		int pageCount = 0;
-		HPDF_Page page = newPage(pdf, invoice);
 		pageCount += 1;
+		HPDF_Page page = newPage(pdf, invoice, pageCount);
 		HPDF_REAL height;
 		height = HPDF_Page_GetHeight(page);
 		HPDF_REAL heightMargin = height*.05;
@@ -510,8 +439,10 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		
 		for (int i = 0; i < lines.size(); i++){
 			if (pos[1] > -90- heightMargin){
-				page = newPage(pdf, invoice);
+				pos = setText(page, -pos[0] +widthMargin, +20, pos);
+				HPDF_Page_ShowText(page, "Continued on the next page...");
 				pageCount += 1;
+				page = newPage(pdf, invoice, pageCount);
 				pos = addiPageHeaders(pdf, page, pageCount);
 				
 			}
@@ -538,28 +469,42 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 			HPDF_Page_ShowText(page, dollarFormat(lines[i][4]).c_str());
 			pos = setText(page, widthUnit * 10, 0, pos);
 			HPDF_Page_ShowText(page, dollarFormat(lines[i][5]).c_str());
-			pos = setText(page, widthUnit * 10, 0, pos);
+			pos = setText(page, widthUnit * 11, 0, pos);
 			HPDF_Page_ShowText(page, dollarFormat(lines[i][6]).c_str());
 			pos = setText(page, widthUnit * 11, 0, pos);
 			HPDF_Page_ShowText(page, dollarFormat(lines[i][7]).c_str());
 			pos = setText(page, widthUnit * 11, 0, pos);
-			HPDF_Page_ShowText(page, totalDollars(lines[i][6], lines[i][7]).c_str());
+			HPDF_Page_ShowText(page, dollarFormat(totalDollars(lines[i][6], lines[i][7])).c_str());
 			HPDF_Page_EndText(page);
 			
 
 		}
+
+		drawLine(page, widthMargin, pos[1] + 18, width - widthMargin, pos[1] + 18);
 		
 		HPDF_Page_BeginText(page);
 		vector<HPDF_REAL> oldPos = pos;
 		pos = { 0, 0 };
-		pos = setText(page, width- widthMargin, -oldPos[1] - 20, pos);
-		HPDF_Page_ShowText(page, "Product");
-		HPDF_Page_ShowText(page, "Freight");
-		HPDF_Page_ShowText(page, "Discount");
-		HPDF_Page_ShowText(page, "Restock");
-		HPDF_Page_ShowText(page, "Invoice Total");
-		
+		tempStr = "Invoice Total: " + dollarFormat(invoice->invoice_total());
+		HPDF_REAL txtAlign = width - widthMargin - HPDF_Page_TextWidth(page, tempStr.c_str());
+
+		pos = setText(page, txtAlign, -oldPos[1] - 36, pos);
+		HPDF_Page_ShowText(page, "Product Total: ");
+		pos = setText(page, width - pos[0] - widthMargin - HPDF_Page_TextWidth(page , invoice->productTotal().c_str()), 0,pos);
+		HPDF_Page_ShowText(page, invoice->productTotal().c_str() );
+
+		pos = setText(page, txtAlign - pos[0], -10, pos);
+		HPDF_Page_ShowText(page, "Freight Total: ");
+		pos = setText(page, width - pos[0] - widthMargin - HPDF_Page_TextWidth(page, invoice->freight().c_str()), 0, pos);
+		HPDF_Page_ShowText(page, invoice->freight().c_str());
+
+		pos = setText(page, txtAlign - pos[0], -10, pos);;
+		HPDF_Page_ShowText(page, "Invoice Total: ");
+		pos = setText(page, width - pos[0] - widthMargin - HPDF_Page_TextWidth(page, dollarFormat(invoice->invoice_total()).c_str()), 0, pos);
+		HPDF_Page_ShowText(page, dollarFormat(invoice->invoice_total()).c_str());
 		HPDF_Page_EndText(page);
+		
+
 
 
 		HPDF_SaveToFile(pdf, (invoice->name() + ".pdf").c_str());
@@ -607,8 +552,8 @@ int main(int argc, char **argv)
 			if (part != "@MSG"  && qty != "0")
 			{
 
-				//		 PSO			 QTY   Part    DESCRIPTION       EXCHANGE			CORE
-				temp = { invoices[i][40], qty, part, invoices[i][5], invoices[i][11], invoices[i][13], invoices[i][12], invoices[i][14] };
+				//		 PSO			 QTY   Part    DESCRIPTION       EXCHANGE			CORE		ExExt			CoreExt			Freight
+				temp = { invoices[i][40], qty, part, invoices[i][5], invoices[i][11], invoices[i][13], invoices[i][12], invoices[i][14], invoices[i][18] };
 				for (int i = 0; i < temp.size(); i++){
 					if (temp[i] == "" && i >3){
 						temp[i] = "0.00";
@@ -627,7 +572,7 @@ int main(int argc, char **argv)
 		}
 		else{//save the invoice and delete the record to release the memory
 			if (invoice != NULL){
-				if (invoice->invoice_total() != 0){
+				if (invoice->invoice_total() != "$0.00"){
 					create_PDF(invoice, customers);
 					//invoice->print();
 				}
@@ -641,7 +586,7 @@ int main(int argc, char **argv)
 	}
 
 	if (invoice != NULL){
-		if (invoice->invoice_total() != 0){
+		if (invoice->invoice_total() != "$0.00"){
 			create_PDF(invoice, customers);
 			//invoice->print();
 		}
