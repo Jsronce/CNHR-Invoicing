@@ -1,5 +1,6 @@
 /* Header for invoicing.cpp*/
 
+
 #include <string>
 #include <iostream>
 #include <exception>
@@ -9,8 +10,7 @@
 #include <set>
 #include "hpdf.h"
 #include <unordered_map>
-#include <boost/algorithm/string.hpp>
-#include <boost/foreach.hpp>
+#include "DateParse.h"
 
 using namespace std;
 
@@ -143,6 +143,12 @@ public:
 
 	vector<vector<string>> get_transactions(){
 		return transactions;
+	}
+
+	string dueDate(){
+		if (this->get_header("Terms") == "")
+			return "";
+		return dateAdd(this->get_header("Date"), this->get_header("Terms"));
 	}
 
 };

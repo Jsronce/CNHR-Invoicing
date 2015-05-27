@@ -396,7 +396,7 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		tempStr = "Terms: " + invoice->get_header("Terms");
 		HPDF_Page_ShowText(page, tempStr.c_str());
 		pos = setText(page, 0, -12, pos);
-		tempStr = "Sales Person: " + invoice->get_header("Sales Person");
+		tempStr = "Due Date: " + invoice->dueDate();
 		HPDF_Page_ShowText(page, tempStr.c_str());
 		
 		pos = setText(page, width*.475-10, 82, pos);
@@ -432,10 +432,6 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 
 		
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
-		int exchExt;
-		int coreExt;
-		int totalExt;
-		
 		
 		for (int i = 0; i < lines.size(); i++){
 			if (pos[1] > -90- heightMargin){
@@ -572,7 +568,7 @@ int main(int argc, char **argv)
 		}
 		else{//save the invoice and delete the record to release the memory
 			if (invoice != NULL){
-				if (invoice->invoice_total() != "$0.00"){
+				if (invoice->invoice_total() != "0.00"){
 					create_PDF(invoice, customers);
 					//invoice->print();
 				}
@@ -586,7 +582,7 @@ int main(int argc, char **argv)
 	}
 
 	if (invoice != NULL){
-		if (invoice->invoice_total() != "$0.00"){
+		if (invoice->invoice_total() != "0.00"){
 			create_PDF(invoice, customers);
 			//invoice->print();
 		}
