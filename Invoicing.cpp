@@ -77,7 +77,7 @@ error_handler(HPDF_STATUS error_no,
 
 
 //Determines whether invoice is sent or not
-set<string> INVOICED_ORDER_TYPES = { "05", "06", "07", "14", "08", "15", "71" };
+set<string> INVOICED_ORDER_TYPES = { "05", "06", "07", "14", "08", "15","53" ,"71","75" };
 set<string> MOVE_TO_AP_TYPES = { "70", "73", "74" };
 
 
@@ -133,7 +133,10 @@ vector<HPDF_REAL> setText(HPDF_Page page, HPDF_REAL x, HPDF_REAL y, vector<HPDF_
 	return Newpos;
 }
 
-string dollarFormat(string number){
+string dollarFormat(string number, bool dollarBool = true){
+	string dollarSign = "";
+	if (dollarBool)
+		dollarSign = "$ ";
 	string neg = "";
 	if (number[0] == '-'){
 		neg = "-";
@@ -151,9 +154,9 @@ string dollarFormat(string number){
 	}
 	string tempStr;
 	if (neg == "-" || neg == "(")
-		tempStr = "$ (";
+		tempStr = dollarSign + "(";
 	else
-		tempStr = "$";
+		tempStr = dollarSign;
 	number.insert(0,tempStr);
 	if (neg == "-" || neg == "(")
 		number.insert(number.size(), ")");
@@ -193,7 +196,7 @@ string totalDollars(string exchangeExt, string coreExt){
 	}
 	total.push_back(stoi(exchange[0]) + stoi(coreV[0]));
 	total.push_back(stoi(exchange[1]) + stoi(coreV[1]));
-	if (total[1] > 100){
+	if (total[1] >= 100){
 		total[1] = total[1] - 100;
 		total[0] = total[0] + 1;
 	}
@@ -392,9 +395,15 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
 		pos = setText(page, widthMargin, height - heightMargin - 100, pos);//
 		HPDF_Page_ShowText(page, "Sold to");
-		pos = setText(page, 10, -10, pos);
+		pos = setText(page, 10, -15, pos);
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
+		
 		tempStr = invoice->get_header("Sold-Name") + " (" + invoice->get_header("SoldTO") + ")";
+		while (HPDF_Page_TextWidth(page, tempStr.c_str())>= width/2-widthMargin){
+			tempStr = invoice->get_header("Sold-Name");
+			invoice->setHeader("Sold-Name", tempStr.erase(tempStr.length() - 1, tempStr.length()));
+			tempStr = invoice->get_header("Sold-Name") + " (" + invoice->get_header("SoldTO") + ")";
+		}
 		HPDF_Page_ShowText(page, tempStr.c_str());
 		pos = setText(page, 0, -12, pos);
 		HPDF_Page_ShowText(page, invoice->get_header("Sold-Ad1").c_str());
@@ -410,16 +419,24 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		pos = setText(page, 0, -12, pos);
 		tempStr = "Due Date: " + invoice->dueDate();
 		HPDF_Page_ShowText(page, tempStr.c_str());
+		pos = setText(page, 0, -12, pos);
+		tempStr = "Order Type: " + invoice->get_header("OT");
+		HPDF_Page_ShowText(page, tempStr.c_str());
 		
-		pos = setText(page, width*.475-10, 82, pos);
+		pos = setText(page, width*.475-10, 102, pos);
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
 		HPDF_Page_ShowText(page, "Ship to");
-		pos = setText(page, 10, -10, pos);
+		pos = setText(page, 10, -15, pos);
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
 		tempStr = invoice->get_header("Ship-Name") + " (" + invoice->get_header("ShipTO") + ")";
+		while (HPDF_Page_TextWidth(page, tempStr.c_str()) >= width / 2 - widthMargin){
+			tempStr = invoice->get_header("Ship-Name");
+			invoice->setHeader("Ship-Name", tempStr.erase(tempStr.length() - 1, tempStr.length()));
+			tempStr = invoice->get_header("Ship-Name") + " (" + invoice->get_header("ShipTO") + ")";
+		}
 		HPDF_Page_ShowText(page, tempStr.c_str());
 		pos = setText(page, 0, -12, pos);
-		HPDF_Page_ShowText(page, invoice->get_header("Ship-Ad2").c_str());
+		HPDF_Page_ShowText(page, invoice->get_header("Ship-Ad1").c_str());
 		pos = setText(page, 0, -12, pos);
 		tempStr = invoice->get_header("Ship-City") + ", " + invoice->get_header("Ship-ST") + invoice->get_header("Ship-Zip");
 		HPDF_Page_ShowText(page, tempStr.c_str());
@@ -500,8 +517,8 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 
 		pos = setText(page, txtAlign, -oldPos[1] - 36, pos);
 		HPDF_Page_ShowText(page, "Product Total: ");
-		pos = setText(page, width - pos[0] - widthMargin - HPDF_Page_TextWidth(page , invoice->productTotal().c_str()), 0,pos);
-		HPDF_Page_ShowText(page, invoice->productTotal().c_str() );
+		pos = setText(page, width - pos[0] - widthMargin - HPDF_Page_TextWidth(page, dollarFormat(invoice->productTotal(), false).c_str()), 0, pos);
+		HPDF_Page_ShowText(page, dollarFormat(invoice->productTotal(),false).c_str() );
 
 		pos = setText(page, txtAlign - pos[0], -10, pos);
 		HPDF_Page_ShowText(page, "Freight Total: ");
@@ -555,13 +572,16 @@ int main(int argc, char **argv)
 	string credit = "";
 
 
-	for (int i = 1; i < invoices.size(); i++){
+	for (int i = 0; i < invoices.size(); i++){
 		string* current = new string( invoices[i][0]);
 		if (*current == previous){//If this line is associated with the current invoice add to it
 			string qty = invoices[i][10];
 			string part = invoices[i][4];
 			if (invoices[i][9] == "C"){
 				credit = "-";
+			}
+			else{
+				credit = "";
 			}
 
 			if (part != "@MSG"  && qty != "0")

@@ -18,7 +18,7 @@ vector<vector<string>> create_table(string fname, char delimeter, bool invoice);
 
 vector<HPDF_REAL> setText(HPDF_Page page, HPDF_REAL x, HPDF_REAL y, vector<HPDF_REAL> pos);
 
-string dollarFormat(string number);
+string dollarFormat(string number, bool dollarSign);
 
 string totalDollars(string exchangeExt, string coreExt);
 
@@ -70,6 +70,15 @@ public:
 		headers["Sold-ST"] = invoice[45];
 		headers["Sold-Zip"] = invoice[46];
 		headers["BOL"] = invoice[39];
+		headers["Batch"] = invoice[22];
+		if (headers["Ship-Ad1"] =="")
+			headers["Ship-Ad1"] = invoice[43];
+		if (headers["Ship-City"] == "")
+			headers["Ship-City"] = invoice[44];
+		if (headers["Ship-St"] == "")
+			headers["Ship-St"] = invoice[45];
+		if (headers["Ship-Zip"] == "")
+			headers["Ship-Zip"] = invoice[46];
 
 
 
@@ -112,6 +121,11 @@ public:
 		}
 		return header_out;
 	}
+	int setHeader(string header, string value){
+		headers[header] = value;
+		return 0;
+	}
+
 
 	string name() { return headers["SoldTO"] + " " + invoice_number; }
 
