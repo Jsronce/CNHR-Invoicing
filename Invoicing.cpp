@@ -79,6 +79,7 @@ error_handler(HPDF_STATUS error_no,
 //Determines whether invoice is sent or not
 set<string> INVOICED_ORDER_TYPES = { "05", "06", "07", "14", "08", "15","53" ,"71","75" };
 set<string> MOVE_TO_AP_TYPES = { "70", "73", "74" };
+vector<string> MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
 
 
 //Fucntion to create a table of values from a delimited file
@@ -463,7 +464,7 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
 		
 		for (int i = 0; i < lines.size(); i++){
-			if (pos[1] > -90- heightMargin){
+			if (pos[1] > -120- heightMargin){
 				HPDF_Page_BeginText(page);
 				pos = setText(page, widthMargin, pos[1] -20, pos);
 				HPDF_Page_ShowText(page, "Continued on the next page...");
@@ -512,10 +513,21 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		HPDF_Page_BeginText(page);
 		vector<HPDF_REAL> oldPos = pos;
 		pos = { 0, 0 };
+		HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 10);
+		pos = setText(page, widthMargin * 2, -oldPos[1] - 36, pos);
+		vector<string> messages = { invoice->get_header("Message1"), invoice->get_header("Message2"), invoice->get_header("Message3") };
+
+		for (int i = 0; i < messages.size(); i++){
+			if (messages[i] != ""){
+				HPDF_Page_ShowText(page, messages[i].c_str());
+				pos = setText(page, 0, -10, pos);
+			}
+
+		}
 		tempStr = "Invoice Total: " + dollarFormat(invoice->invoice_total());
 		HPDF_REAL txtAlign = width - widthMargin - HPDF_Page_TextWidth(page, tempStr.c_str());
 
-		pos = setText(page, txtAlign, -oldPos[1] - 36, pos);
+		pos = setText(page, txtAlign- pos[0], - 20, pos);
 		HPDF_Page_ShowText(page, "Product Total: ");
 		pos = setText(page, width - pos[0] - widthMargin - HPDF_Page_TextWidth(page, dollarFormat(invoice->productTotal(), false).c_str()), 0, pos);
 		HPDF_Page_ShowText(page, dollarFormat(invoice->productTotal(),false).c_str() );
@@ -531,11 +543,12 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		HPDF_Page_ShowText(page, dollarFormat(invoice->invoice_total()).c_str());
 		HPDF_Page_EndText(page);
 		
+		string path1 = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\Invoices to Send\\";
+		string path2 = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\20" + invoice->get_header("Date").substr(6) + "\\" + MONTHS[stoi(invoice->get_header("Date").substr(0,2))-1] \
+			+ "\\Batch Detail\\" + invoice->get_header("Batch") + "\\";
 
-
-
-		HPDF_SaveToFile(pdf, (invoice->name() + ".pdf").c_str());
-
+			HPDF_SaveToFile(pdf, (path1 + invoice->name() + ".pdf").c_str());
+			HPDF_SaveToFile(pdf, (path2 + invoice->name() + ".pdf").c_str());
 	}
 	catch (...){
 		HPDF_Free(pdf);
