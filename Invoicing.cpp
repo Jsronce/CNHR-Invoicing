@@ -7,9 +7,7 @@ Description:
 Takes invoicing data from a csv named invoice.csv located in:
 "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\Processing"
 that is delimited by tabs.  Creates an Invoice object for each invoice
-and uses that object to create a PDF Invoice.  Currentlly uses a 
-customer file to get SoldTo information, because it is not included in
-download.  
+and uses that object to create a PDF Invoice. 
 
 Dependances: 
 Libpdfs: a LibHaru Library for PDF writing
@@ -148,6 +146,8 @@ string dollarFormat(string number, bool dollarBool = true){
 		number.erase(0, 1);
 		number.erase(number.size() - 1, number.size());
 	}
+	if (number == "")
+		number = "0.00";
 	int insertPosition = number.length() - 6;
 	while (insertPosition > 0) {
 		number.insert(insertPosition, ",");
@@ -240,10 +240,10 @@ HPDF_Page newPage(HPDF_Doc pdf, record* invoice, int pageCount){
 	pos = setText(page, 0, -16, pos);
 
 	HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica", NULL), 12);
-	HPDF_Page_ShowText(page, "2702 N FR 123, Suite A");
+	HPDF_Page_ShowText(page, "2707 N FR 123");
 	pos = setText(page, 0, -12, pos);
 
-	HPDF_Page_ShowText(page, "Springfield MO, 65807");
+	HPDF_Page_ShowText(page, "Springfield MO, 65803");
 
 	HPDF_Page_SetFontAndSize(page, HPDF_GetFont(pdf, "Helvetica-Bold", NULL), 16);
 	const char* title = "Invoice:";
@@ -348,7 +348,7 @@ vector<HPDF_REAL> addiPageHeaders(HPDF_Doc pdf, HPDF_Page page, int pageCount){
 	HPDF_Page_MoveTo(page, widthMargin, height - heightMargin - headerHeight -1);
 	HPDF_Page_LineTo(page, width - widthMargin, height - heightMargin - headerHeight - 1);
 	HPDF_Page_Stroke(page);
-	vector<int> widthList = { 0, 9, 9, 24, 10, 10, 12, 12 };
+	vector<int> widthList = { 0, 9, 9, 24, 10, 10, 12, 11 };
 	HPDF_REAL widthSum = 0;
 	BOOST_FOREACH(int width, widthList){
 		HPDF_Page_MoveTo(page, widthMargin + width * widthUnit*.9 + widthSum, height - heightMargin - headerHeight - 1);
@@ -409,7 +409,7 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		pos = setText(page, 0, -12, pos);
 		HPDF_Page_ShowText(page, invoice->get_header("Sold-Ad1").c_str());
 		pos = setText(page, 0, -12, pos);
-		tempStr = invoice->get_header("Sold-City") + ", " + invoice->get_header("Sold-ST") + invoice->get_header("Sold-Zip");
+		tempStr = invoice->get_header("Sold-City") + ", " + invoice->get_header("Sold-ST") + " " + invoice->get_header("Sold-Zip");
 		HPDF_Page_ShowText(page, tempStr.c_str());
 		pos = setText(page, 0, -24, pos);
 		tempStr = "PO Number: " + invoice->get_header("PO");
@@ -439,7 +439,7 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		pos = setText(page, 0, -12, pos);
 		HPDF_Page_ShowText(page, invoice->get_header("Ship-Ad1").c_str());
 		pos = setText(page, 0, -12, pos);
-		tempStr = invoice->get_header("Ship-City") + ", " + invoice->get_header("Ship-ST") + invoice->get_header("Ship-Zip");
+		tempStr = invoice->get_header("Ship-City") + ", " + invoice->get_header("Ship-ST")+ " " + invoice->get_header("Ship-Zip");
 		HPDF_Page_ShowText(page, tempStr.c_str());
 		pos = setText(page, 0, -24, pos);
 		tempStr = "Ship Date: " + invoice->get_header("Date");
@@ -493,11 +493,11 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 			
 			pos = setText(page, 0, -10, pos);
 			HPDF_Page_ShowText(page, lines[i][3].c_str());
-			pos = setText(page, widthUnit * 23, 10, pos);
+			pos = setText(page, widthUnit * 21, 10, pos);
 			HPDF_Page_ShowText(page, dollarFormat(lines[i][4]).c_str());
-			pos = setText(page, widthUnit * 10, 0, pos);
-			HPDF_Page_ShowText(page, dollarFormat(lines[i][5]).c_str());
 			pos = setText(page, widthUnit * 11, 0, pos);
+			HPDF_Page_ShowText(page, dollarFormat(lines[i][5]).c_str());
+			pos = setText(page, widthUnit * 10, 0, pos);
 			HPDF_Page_ShowText(page, dollarFormat(lines[i][6]).c_str());
 			pos = setText(page, widthUnit * 11, 0, pos);
 			HPDF_Page_ShowText(page, dollarFormat(lines[i][7]).c_str());
@@ -543,12 +543,23 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		HPDF_Page_ShowText(page, dollarFormat(invoice->invoice_total()).c_str());
 		HPDF_Page_EndText(page);
 		
-		string path1 = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\Invoices to Send\\";
-		string path2 = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\20" + invoice->get_header("Date").substr(6) + "\\" + MONTHS[stoi(invoice->get_header("Date").substr(0,2))-1] \
-			+ "\\Batch Detail\\" + invoice->get_header("Batch") + "\\";
 
-			HPDF_SaveToFile(pdf, (path1 + invoice->name() + ".pdf").c_str());
-			HPDF_SaveToFile(pdf, (path2 + invoice->name() + ".pdf").c_str());
+
+
+
+		//Uncomment for debuging in the current directory
+		//HPDF_SaveToFile(pdf, (invoice->name() + ".pdf").c_str());
+
+		string path1 = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\Invoices to Send\\";
+		HPDF_SaveToFile(pdf, (path1 + invoice->name() + ".pdf").c_str());
+
+
+		//Commands for saving to a batch folder, increases processing time, because user has to wait to download until after batch is comple
+		//string path2 = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\20" + invoice->get_header("Date").substr(6) + "\\" + MONTHS[stoi(invoice->get_header("Date").substr(0,2))-1] \
+			//+ "\\Batch Detail\\" + invoice->get_header("Batch") + "\\";
+		//HPDF_SaveToFile(pdf, (path2 + invoice->name() + ".pdf").c_str());
+
+
 	}
 	catch (...){
 		HPDF_Free(pdf);
@@ -600,8 +611,11 @@ int main(int argc, char **argv)
 			if (part != "@MSG"  && qty != "0")
 			{
 
-				//		 PSO			 QTY   Part    DESCRIPTION       EXCHANGE			CORE		ExExt			CoreExt			Freight
+				//		 PSO			 QTY            Part    DESCRIPTION       EXCHANGE			CORE		ExExt			CoreExt			Freight
 				temp = { invoices[i][40], credit + qty, part, invoices[i][5], credit + invoices[i][11], credit + invoices[i][13], credit + invoices[i][12], credit + invoices[i][14], invoices[i][18] };
+				if (temp[3] == ""){
+					temp[3] = invoices[i][47];
+				}
 				for (int i = 0; i < temp.size(); i++){
 					if (temp[i] == "" && i >3){
 						temp[i] = "0.00";
