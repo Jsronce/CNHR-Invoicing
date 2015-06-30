@@ -17,20 +17,24 @@ string dateAdd(string base, string add){
 	while (getline(date, token, delmiter)) {
 		parsedDate.push_back(token);
 	}
-	int month = stoi(parsedDate[0]) +1;
-	int day = stoi(parsedDate[1]) + stoi(add) - monthsDays[month - 1];
+	int month = stoi(parsedDate[0]);
+	int day = stoi(parsedDate[1]) + stoi(add);
 	int year = stoi(parsedDate[2]);
-	while (parsing){
-		if (month > 11){
-			month = 1;
+	while (true){
+		if (month > 12){
+			month = month - 12;
 			year += 1;
 		}
+		else{
+			if (!(day > monthsDays[month - 1] || month > 12)){
+				break;
+			}
+		}
+
 		if (day > monthsDays[month - 1]){
 			day -= monthsDays[month - 1];
 			month += 1;
 		}
-		if (!(day > monthsDays[month - 1] && month > 11))
-			break;
 	}
 	if (month < 10)
 		parsedDate[0] = "0" + to_string(month);
