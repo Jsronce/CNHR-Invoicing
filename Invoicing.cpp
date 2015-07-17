@@ -78,6 +78,7 @@ error_handler(HPDF_STATUS error_no,
 set<string> INVOICED_ORDER_TYPES = { "05", "06", "07", "14", "08", "15","53" ,"71","75" };
 set<string> MOVE_TO_AP_TYPES = { "70", "73", "74" };
 vector<string> MONTHS = { "Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec" };
+set<string> MOVE_TO_AP_CUST = { "RM6210", "RM2620", "RM4800", "RM7800", "rm2610", "rm2620", "rm4800", "rm7800" };
 
 
 //Fucntion to create a table of values from a delimited file
@@ -551,7 +552,13 @@ int create_PDF(record* invoice, vector<vector<string>> customers){
 		//HPDF_SaveToFile(pdf, (invoice->name() + ".pdf").c_str());
 
 		string path1 = "\\\\psserver1\\CNHR_Depts\\Accounting\\Shipment Reports\\Invoices to Send\\";
-		HPDF_SaveToFile(pdf, (path1 + invoice->name() + ".pdf").c_str());
+		string ap;
+		if (MOVE_TO_AP_TYPES.count(invoice->get_header("OT")) != 0 || MOVE_TO_AP_CUST.count(invoice->get_header("SoldTO")) != 0){
+			ap = " AP";
+
+		}
+		string filename = path1 + invoice->name() + ap + ".pdf";
+		HPDF_SaveToFile(pdf, (filename).c_str());
 
 
 		//Commands for saving to a batch folder, increases processing time, because user has to wait to download until after batch is comple
